@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.xiaowei.mapper.mapper.TestDbDOMapper">
+    <!-- 自动生成,请修改 TEST_DB.xml -->
+    <resultMap id="BaseResultMap"  type="com.xiaowei.mapper.dataobject.TestDbDO">
+            <id column="ID" property="id" jdbcType="BIGINT" javaType="Long"/>
+            <result column="NAME" property="name" jdbcType="VARCHAR" javaType="String"/>
+    </resultMap>
+
+
+    <sql id="Base_Column_List">
+        ID,NAME
+    </sql>
+
+
+        <!--插入表:TEST_DB-->
+        <insert id="insert" >
+                    <selectKey resultType="java.lang.Long" keyProperty="id" order="AFTER">
+                SELECT
+                LAST_INSERT_ID()
+            </selectKey>
+        INSERT INTO TEST_DB(
+            
+            NAME
+        )VALUES(
+            
+            #{name,jdbcType=VARCHAR}
+        )
+        </insert>
+
+        <!--更新表:TEST_DB-->
+        <update id="update" >
+                    UPDATE /*MS-TEST-DB-UPDATE*/ TEST_DB
+            SET
+                    NAME            = #{name,jdbcType=VARCHAR}
+            WHERE
+                ID              = #{id,jdbcType=BIGINT}
+        </update>
+
+        <!--根据主键删除数据:TEST_DB-->
+        <delete id="deleteById" >
+                    DELETE /*MS-TEST-DB-DELETEBYID*/ FROM TEST_DB
+            WHERE
+                ID = #{id,jdbcType=BIGINT}
+        </delete>
+
+        <!--根据主键获取数据:TEST_DB-->
+        <select id="getById" resultMap="BaseResultMap">
+                    SELECT /*MS-TEST-DB-GETBYID*/  <include refid="Base_Column_List" /> FROM TEST_DB
+            WHERE
+                ID = #{id,jdbcType=BIGINT}
+        </select>
+</mapper>

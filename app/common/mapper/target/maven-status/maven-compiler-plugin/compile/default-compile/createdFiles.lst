@@ -1,0 +1,5 @@
+com\xiaowei\mapper\dataobject\TestDbDO.class
+com\xiaowei\mapper\mapper\TestDbDOMapper.class
+com\xiaowei\mapper\config\DataSourceConfig.class
+com\xiaowei\mapper\dao\TestDbDAO.class
+com\xiaowei\mapper\config\HikariDattaSourceConfig.class

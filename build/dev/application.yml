@@ -1,0 +1,220 @@
+#################   cloud 初始化参数   ############################
+# ahtuor2  https://blog.csdn.net/qq_27384769/article/details/79443242
+xiaowei:
+  application: xiaowei-gateway-core #应用名
+  port: 9093 #项目端口号
+  ip: 172.16.10.17  #注册中心ip地址
+  eureka-port: 8761 #注册中心端口号
+  security:
+    name: admin # 用户名
+    password: 123456 #密码
+  ignores: login #忽略拦截那些url
+#################   cloud 项目初始化参数 end  ############################
+
+
+
+server:
+  port: ${xiaowei.port}
+  tomcat:
+      uri-encoding: utf-8
+eureka:
+  client:
+#    register-with-eureka: false #表示是否注册自身到eureka服务器
+#    fetch-registry: false  #是否从eureka上获取注册信息
+    service-url:
+      defaultZone: http://${xiaowei.security.name}:${xiaowei.security.password}@${xiaowei.ip}:${xiaowei.eureka-port}/eureka/
+    registry-fetch-interval-seconds: 5 #client间隔多久去拉取服务注册信息，默认为30秒，对于api-gateway，如果要迅速获取服务注册状态，可以缩小该值，比如5秒
+  instance:
+    preferIpAddress: true
+    instance-id: ${spring.application.name}:${spring.cloud.client.ip-address}:${server.port}
+#    instance-id: ${spring.cloud.client.hostname}:${spring.application.name}:${spring.cloud.client.ip-address}:${server.port}
+    hostname: ${xiaowei.application}
+    lease-renewal-interval-in-seconds: 5 # 该配置指示eureka客户端需要向eureka服务器发送心跳的频率  (Spring Cloud默认该配置是 30s)
+    lease-expiration-duration-in-seconds: 10 # 该配置指示eureka服务器在接收到最后一个心跳之后等待的时间，然后才能从列表中删除此实例 (Spring Cloud默认该配置是 90s)
+    metadata-map: #admin 监控检查
+      startup: ${random.int}    #needed to trigger info and endpoint update after restart
+      user.name: ${spring.security.user.name}
+      user.password: ${spring.security.user.password}
+spring:
+  application:
+    name: ${xiaowei.application}
+  redis:
+     # host: 127.0.0.1
+      host: 172.16.10.15
+      password: xiaowei1234
+      port: 6379
+      database: 0
+      timeout: 300000
+  #    cluster:
+  #      nodes: 127.0.0.1:6380,127.0.0.1:6381,127.0.0.1:6382,127.0.0.1:6383,127.0.0.1:6384,127.0.0.1:6385
+  #      max-redirects: 3
+      lettuce:
+        shutdown-timeout: 100
+        pool:
+          max-active: 50 # 连接池最大连接数（使用负值表示没有限制） 默认 8
+          max-idle: 20 # 连接池中的最大空闲连接 默认 8
+          max-wait: -1 # 连接池最大阻塞等待时间（使用负值表示没有限制） 默认 -1
+          min-idle: 20 # 连接池中的最小空闲连接 默认 0
+  rabbitmq:
+    addresses: 111.231.117.239
+    username: admin
+    password: 123456
+    virtual-host: / #连接到代理时要使用的虚拟主机。
+    connection-timeout: 15000
+    port: 5672
+    publisherConfirms: true  # 开启发送确认
+    publisherReturns: true  # 开启发送失败退回
+    template:
+      mandatory: true #保证监听有效
+    listener:
+      simple:
+        acknowledge-mode: manual #消息手工签收
+        concurrency: 50
+        max-concurrency: 100
+        prefetch: 100 #消费者每次从队列获取的消息数量
+        auto-startup: true #消费者自动启动
+        default-requeue-rejected: true #消费失败自动重新入队列
+        retry: #启用发送重试 队列的发送者，队列满了就重置
+          enabled: false
+          initial-interval: 1000
+          max-attempts: 3
+          max-interval: 10000
+          multiplier: 1.0
+#      direct:
+#        prefetch: 1 #单一消费者最多能消费的unacked messages数目。
+
+  cloud:
+     gateway:
+       discovery: #是否与服务发现组件进行结合，通过 serviceId(必须设置成大写) 转发到具体的服务实例。默认为false，设为true便开启通过服务中心的自动根据 serviceId 创建路由的功能
+         locator:
+           lowerCaseServiceId: true
+           enabled: true
+       routes: #具体的路由信息，是一个数组，每一个路由基本包含部分：
+#        default-filters: # 里面可以定义一些共同的filter，对所有路由都起作用
+
+#################################       后台管理服务网关        #################################
+        - id: xiaowei-system-core #这个路由的唯一id，不定义的话为一个uuid
+          uri: lb://xiaowei-system-core   #http请求为lb://前缀 + 服务id；ws请求为lb:ws://前缀 + 服务id；表示将请求负载到哪一个服务上
+          order: 8000 #这个路由的执行order
+          predicates: #表示这个路由的请求匹配规则，只有符合这个规则的请求才会走这个路由。为一个数组，每个规则为并且的关系。
+            - Path= /api/platform/**
+          filters: #请求转发前的filter，为一个数组。
+#            - Weight=service3, 5 #路由权重   未完成
+            - StripPrefix= 1
+#            - JwtCheck
+            - name: RequestRateLimiter #名称是固定的，spring gateway会根据名称找对应的FilterFactory
+              args:
+                redis-rate-limiter.replenishRate: 100000 #每秒最大访问次数
+                redis-rate-limiter.burstCapacity: 300000 #令牌桶最大容量
+                keyResolver: "#{@apiKeyResolver}" #apiKeyResolver为keyResolver bean的名字
+                #自定义限流
+#            - name: RateCheck #限流
+#              args:
+#                keyResolver: apiKeyResolver #apiKeyResolver为keyResolver bean的名字
+
+#################################       自助服务网关        #################################
+        - id: xiaowei-self-service #这个路由的唯一id，不定义的话为一个uuid
+          uri: lb://xiaowei-self-service   #http请求为lb://前缀 + 服务id；ws请求为lb:ws://前缀 + 服务id；表示将请求负载到哪一个服务上
+          order: 2 #这个路由的执行order
+          predicates: #表示这个路由的请求匹配规则，只有符合这个规则的请求才会走这个路由。为一个数组，每个规则为并且的关系。
+            - Path= /api/self/**
+          filters: #请求转发前的filter，为一个数组。
+#            - Weight=service3, 5 #路由权重   未完成
+            - StripPrefix= 1
+#            - JwtCheck
+            - name: RequestRateLimiter #名称是固定的，spring gateway会根据名称找对应的FilterFactory
+              args:
+                redis-rate-limiter.replenishRate: 100000 #每秒最大访问次数
+                redis-rate-limiter.burstCapacity: 300000 #令牌桶最大容量
+                keyResolver: "#{@apiKeyResolver}" #apiKeyResolver为keyResolver bean的名字
+                #自定义限流
+#            - name: RateCheck #限流
+#              args:
+#                keyResolver: apiKeyResolver #apiKeyResolver为keyResolver bean的名字
+
+
+#################################       测试用例       #################################
+        - id: test-core #这个路由的唯一id，不定义的话为一个uuid
+          uri: lb://test-core   #http请求为lb://前缀 + 服务id；ws请求为lb:ws://前缀 + 服务id；表示将请求负载到哪一个服务上
+          order: 8000 #这个路由的执行order
+          predicates: #表示这个路由的请求匹配规则，只有符合这个规则的请求才会走这个路由。为一个数组，每个规则为并且的关系。
+            - Path= /api/test/**
+          filters: #请求转发前的filter，为一个数组。
+#            - Weight=service3, 5 #路由权重   未完成
+            - StripPrefix= 1
+#            - JwtCheck
+            - name: RequestRateLimiter #名称是固定的，spring gateway会根据名称找对应的FilterFactory
+              args:
+                redis-rate-limiter.replenishRate: 20 #每秒最大访问次数
+                redis-rate-limiter.burstCapacity: 30 #令牌桶最大容量
+                keyResolver: "#{@apiKeyResolver}" #apiKeyResolver为keyResolver bean的名字
+                #自定义限流
+#            - name: RateCheck #限流
+#              args:
+#                keyResolver: apiKeyResolver #apiKeyResolver为keyResolver bean的名字
+
+        # ------------------------------------------------------------------------
+#          - id: i5xforyou-biz-kanjia-websocket
+#            uri: lb:ws://i5xforyou-biz-kanjia-websocket
+#            predicates:
+#            - Path= ${server.servlet.context-path}/kanjia-websocket/**
+#            filters:
+#            - StripPrefix= 1
+
+#logging:
+#  level:
+#    org.springframework.cloud.gateway: trace
+#    org.springframework.http.server.reactive: debug
+#    org.springframework.web.reactive: debug
+#    reactor.ipc.netty: debug
+
+load: #负载均衡 https://blog.csdn.net/www1056481167/article/details/81151064  https://blog.csdn.net/jrn1012/article/details/77837680
+    ribbon:
+#     NFLoadBalancerRuleClassName: com.netflix.loadbalancer.ZoneAvoidanceRule #  默认规则，符合判断server所在区域的性能和server的可用性选择服务器
+#      NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RoundRobinRule # 轮询
+#      NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RandomRule #  随机
+#     NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RetryRule #  先按照RoundRobinRule的策略获取服务，如果获取失败则在制定时间内进行重试，获取可用的服务。
+      NFLoadBalancerRuleClassName: com.netflix.loadbalancer.WeightedResponseTimeRule #  根据平均响应的时间计算所有服务的权重，响应时间越快服务权重越大被选中的概率越高，刚启动时如果统计信息不足，则使用RoundRobinRule策略，等统计信息足够会切换到WeightedResponseTimeRule
+#     NFLoadBalancerRuleClassName: com.netflix.loadbalancer.AvailabilityFilteringRule #  会先过滤由于多次访问故障而处于断路器跳闸状态的服务，还有并发的连接数量超过阈值的服务，然后对剩余的服务列表按照轮询策略进行访问
+
+#开启hystrix配置
+feign:
+  hystrix:
+    enabled: true # 开启Feign熔断
+hystrix:
+  threadpool:
+    default:
+      coreSize: 500  #并发执行的最大线程数，默认10
+  command:
+    paas-file:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds: 3600000
+    default:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds: 80000 #命令执行超时时间，默认1000ms
+#ribbon的超时时间
+ribbon:
+  ReadTimeout: 60000
+  ConnectTimeout: 60000
+  MaxAutoRetries: 0 #同一台实例最大重试次数,不包括首次调用
+  MaxAutoRetriesNextServer: 0 #重试负载均衡其他的实例最大重试次数,不包括首次调用
+  OkToRetryOnAllOperations: false  #是否所有操作都重试
+  eureka:
+    enabled: true
+
+management: # 需要监控的端点
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+      health:
+        show-details: ALWAYS
+      shutdown: #curl -X POST localhost:port/actuator/shutdown
+        enabled: true #启用shutdown端点
+
+
